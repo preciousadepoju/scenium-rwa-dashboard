@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String
+  walletAddress  String        @default("0x0000000000000000000000000000000000000000")
+  balance        Float         @default(10000.0) // initial fake balance
+  holdings       Holding[]
+  transactions   Transaction[]
+  yield          Float         @default(0.0) // Mocked total yield
+}
+
+model Asset {
+  id              String        @id @default(cuid())
+  name            String
+  symbol          String
+  type            String        // e.g. "Stock", "Real Estate", "Fund"
+  description     String?       // Short detail description
+  price           Float         // Live price mock
+  availableShares Int           // How many shares available in marketplace
+  totalShares     Int
+  holdings        Holding[]
+  transactions    Transaction[]
+}
+
+model Holding {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  asset     Asset   @relation(fields: [assetId], references: [id])
+  assetId   String
+  shares    Int
+  avgPrice  Float
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  assetId   String
+  type      String   // "BUY" or "SELL"
+  shares    Int
+  price     Float
+  txHash    String?  // The mock tanssi tx block hash
+  createdAt DateTime @default(now())
+}
