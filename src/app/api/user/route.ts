@@ -111,125 +111,130 @@ function formatUserResponse(user: UserWithRelations) {
 }
 
 export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const walletAddress = searchParams.get('walletAddress');
+
+  if (!walletAddress) {
+    return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 });
+  }
+
+  // If DATABASE_URL isn't configured, use in-memory user store
+  if (!process.env.DATABASE_URL) {
+    const user = getOrCreateInMemoryUser(walletAddress);
+    return NextResponse.json(user);
+  }
+
   try {
-    const { searchParams } = new URL(req.url);
-    const walletAddress = searchParams.get('walletAddress');
-
-    if (!walletAddress) {
-      return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 });
-    }
-
-    // If DATABASE_URL isn't configured, use in-memory user store
-    if (!process.env.DATABASE_URL) {
-      const user = getOrCreateInMemoryUser(walletAddress);
-      return NextResponse.json(user);
-    }
-
     const user = await getOrCreateUserByWallet(walletAddress);
     return NextResponse.json(formatUserResponse(user));
   } catch (error) {
-    console.error("Error fetching user:", error);
-    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
+    console.error("Error fetching user, falling back to in-memory store:", error);
+    const user = getOrCreateInMemoryUser(walletAddress);
+    return NextResponse.json(user);
   }
 }
 
 export async function POST(req: Request) {
+  const body = await req.json();
+  const { action, assetId, shares, price, walletAddress, name, symbol } = body;
+
+  if (!walletAddress) {
+    return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 });
+  }
+
+  const cost = price * shares;
+
+  async function handleInMemory() {
+    const user = getOrCreateInMemoryUser(walletAddress);
+
+    if (action === 'buy') {
+      if (user.balance < cost) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+
+      const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id);
+      if (!tanssiResult.success) {
+        return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
+      }
+
+      user.balance -= cost;
+
+      const existingHolding = user.holdings.find(h => h.assetId === assetId);
+      if (existingHolding) {
+        const newTotalShares = existingHolding.shares + shares;
+        const newTotalCost = (existingHolding.shares * existingHolding.avgPrice) + cost;
+        existingHolding.shares = newTotalShares;
+        existingHolding.avgPrice = newTotalCost / newTotalShares;
+      } else {
+        user.holdings.push({
+          id: `holding-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          assetId,
+          shares,
+          avgPrice: price,
+          name,
+          symbol,
+        });
+      }
+
+      const tx: MemoryTransaction = {
+        id: `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        assetId,
+        type: 'BUY',
+        shares,
+        price,
+        txHash: tanssiResult.txHash,
+        createdAt: new Date().toISOString(),
+        name,
+        symbol,
+      };
+      user.transactions.unshift(tx);
+
+      return NextResponse.json({ user, txHash: tanssiResult.txHash });
+    }
+
+    if (action === 'sell') {
+      const existingHolding = user.holdings.find(h => h.assetId === assetId);
+      if (!existingHolding || existingHolding.shares < shares) {
+        return NextResponse.json({ error: "Insufficient shares" }, { status: 400 });
+      }
+
+      const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id);
+      if (!tanssiResult.success) {
+        return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
+      }
+
+      user.balance += cost;
+      existingHolding.shares -= shares;
+      if (existingHolding.shares === 0) {
+        user.holdings = user.holdings.filter(h => h.id !== existingHolding.id);
+      }
+
+      const tx: MemoryTransaction = {
+        id: `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        assetId,
+        type: 'SELL',
+        shares,
+        price,
+        txHash: tanssiResult.txHash,
+        createdAt: new Date().toISOString(),
+        name,
+        symbol,
+      };
+      user.transactions.unshift(tx);
+
+      return NextResponse.json({ user, txHash: tanssiResult.txHash });
+    }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  }
+
+  // If DATABASE_URL is not set, always use in-memory mode
+  if (!process.env.DATABASE_URL) {
+    return handleInMemory();
+  }
+
+  // Try Prisma-backed implementation; on failure, fall back to in-memory
   try {
-    const body = await req.json();
-    const { action, assetId, shares, price, walletAddress, name, symbol } = body;
-
-    if (!walletAddress) {
-      return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 });
-    }
-
-    const cost = price * shares;
-
-    // In-memory implementation if DATABASE_URL is not set
-    if (!process.env.DATABASE_URL) {
-      const user = getOrCreateInMemoryUser(walletAddress);
-
-      if (action === 'buy') {
-        if (user.balance < cost) {
-          return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-        }
-
-        const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id);
-        if (!tanssiResult.success) {
-          return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
-        }
-
-        user.balance -= cost;
-
-        const existingHolding = user.holdings.find(h => h.assetId === assetId);
-        if (existingHolding) {
-          const newTotalShares = existingHolding.shares + shares;
-          const newTotalCost = (existingHolding.shares * existingHolding.avgPrice) + cost;
-          existingHolding.shares = newTotalShares;
-          existingHolding.avgPrice = newTotalCost / newTotalShares;
-        } else {
-          user.holdings.push({
-            id: `holding-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            assetId,
-            shares,
-            avgPrice: price,
-            name,
-            symbol,
-          });
-        }
-
-        const tx: MemoryTransaction = {
-          id: `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          assetId,
-          type: 'BUY',
-          shares,
-          price,
-          txHash: tanssiResult.txHash,
-          createdAt: new Date().toISOString(),
-          name,
-          symbol,
-        };
-        user.transactions.unshift(tx);
-
-        return NextResponse.json({ user, txHash: tanssiResult.txHash });
-      }
-
-      if (action === 'sell') {
-        const existingHolding = user.holdings.find(h => h.assetId === assetId);
-        if (!existingHolding || existingHolding.shares < shares) {
-          return NextResponse.json({ error: "Insufficient shares" }, { status: 400 });
-        }
-
-        const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id);
-        if (!tanssiResult.success) {
-          return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
-        }
-
-        user.balance += cost;
-        existingHolding.shares -= shares;
-        if (existingHolding.shares === 0) {
-          user.holdings = user.holdings.filter(h => h.id !== existingHolding.id);
-        }
-
-        const tx: MemoryTransaction = {
-          id: `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          assetId,
-          type: 'SELL',
-          shares,
-          price,
-          txHash: tanssiResult.txHash,
-          createdAt: new Date().toISOString(),
-          name,
-          symbol,
-        };
-        user.transactions.unshift(tx);
-
-        return NextResponse.json({ user, txHash: tanssiResult.txHash });
-      }
-
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-
-    // Prisma-backed implementation when DATABASE_URL is available
     const user = await getOrCreateUserByWallet(walletAddress);
 
     if (action === 'buy') {
@@ -237,14 +242,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
       }
 
-      // Mock integration with Tanssi testnet
       const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id);
 
       if (!tanssiResult.success) {
         return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
       }
 
-      // Decrement user balance
       await prisma.user.update({
         where: { id: user.id },
         data: { balance: user.balance - cost }
@@ -272,7 +275,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // Save transaction
       await prisma.transaction.create({
         data: {
           userId: user.id,
@@ -302,14 +304,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Insufficient shares" }, { status: 400 });
       }
 
-      // Mock integration with Tanssi testnet
       const tanssiResult = await TanssiProvider.mintFractionalAsset(assetId, shares, user.id); // Re-using mint simulate for now
 
       if (!tanssiResult.success) {
         return NextResponse.json({ error: "Tanssi transaction failed" }, { status: 500 });
       }
 
-      // Increment user balance
       await prisma.user.update({
         where: { id: user.id },
         data: { balance: user.balance + cost }
@@ -328,7 +328,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // Save transaction
       await prisma.transaction.create({
         data: {
           userId: user.id,
@@ -353,7 +352,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    console.error("Error processing transaction:", error);
-    return NextResponse.json({ error: "Failed to process transaction" }, { status: 500 });
+    console.error("Prisma transaction failed, falling back to in-memory mode:", error);
+    return handleInMemory();
   }
 }

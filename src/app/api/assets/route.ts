@@ -9,12 +9,12 @@ const FALLBACK_ASSETS = [
 ] as const;
 
 export async function GET() {
-  // If DATABASE_URL isn't configured, fall back to in-memory demo data
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json(FALLBACK_ASSETS);
-  }
-
   try {
+    // If DATABASE_URL isn't configured, fall back to in-memory demo data
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(FALLBACK_ASSETS);
+    }
+
     let assets = await prisma.asset.findMany();
     
     // If no assets exist or if they are missing descriptions, re-seed basic demo assets
@@ -31,7 +31,8 @@ export async function GET() {
     return NextResponse.json(assets);
   } catch (error) {
     console.error("Error fetching assets:", error);
-    return NextResponse.json({ error: "Failed to fetch assets" }, { status: 500 });
+    // If Prisma fails (e.g. misconfigured DATABASE_URL), still return demo assets
+    return NextResponse.json(FALLBACK_ASSETS);
   }
 }
  
