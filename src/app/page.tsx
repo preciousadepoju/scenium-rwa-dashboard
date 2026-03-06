@@ -173,12 +173,13 @@ export default function Dashboard() {
   const totalValue = (user?.balance || 0) + portfolioValue;
   const totalYield = totalValue - 10000; // Starter balance was 10000
   const isYieldPositive = totalYield >= 0;
+  const rwaAllocation = totalValue > 0 ? (portfolioValue / totalValue) * 100 : 0;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#09090b] text-zinc-100 font-sans selection:bg-emerald-500/30">
+    <div className="flex min-h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-emerald-500/30">
 
       {/* Sidebar */}
-      <aside className="w-64 border-r border-white/10 bg-black/50 flex flex-col backdrop-blur-md z-10 shrink-0">
+      <aside className="hidden w-64 border-r border-white/10 bg-black/50 md:flex flex-col backdrop-blur-md z-10 shrink-0">
         <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-500">
             <Gem size={20} fill="currentColor" />
@@ -275,19 +276,53 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        <header className="flex h-20 shrink-0 items-center justify-between border-b border-white/10 bg-black/20 px-8 backdrop-blur-md sticky top-0 z-40">
-          <h1 className="text-2xl font-semibold tracking-tight capitalize">
-            {activeTab === 'portfolio' ? 'Portfolio Overview' : activeTab}
-          </h1>
-          <div className="flex items-center gap-4">
-             <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400">
+        <header className="flex flex-col gap-3 md:flex-row h-auto md:h-20 shrink-0 md:items-center md:justify-between border-b border-white/10 bg-black/20 px-4 md:px-8 py-3 md:py-0 backdrop-blur-md sticky top-0 z-40">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight capitalize">
+              {activeTab === 'portfolio' ? 'Portfolio Overview' : activeTab}
+            </h1>
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium text-emerald-400">
               Available Cash: ${(user?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
+          </div>
+
+          {/* Mobile tab switcher */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setActiveTab("portfolio")}
+              className={`flex-1 rounded-full px-3 py-2 text-xs font-medium border transition-colors ${
+                activeTab === "portfolio"
+                  ? "bg-emerald-500 text-black border-emerald-500"
+                  : "border-white/10 text-zinc-300 bg-black/40"
+              }`}
+            >
+              Portfolio
+            </button>
+            <button
+              onClick={() => setActiveTab("transactions")}
+              className={`flex-1 rounded-full px-3 py-2 text-xs font-medium border transition-colors ${
+                activeTab === "transactions"
+                  ? "bg-emerald-500 text-black border-emerald-500"
+                  : "border-white/10 text-zinc-300 bg-black/40"
+              }`}
+            >
+              History
+            </button>
+            <button
+              onClick={() => setActiveTab("marketplace")}
+              className={`flex-1 rounded-full px-3 py-2 text-xs font-medium border transition-colors ${
+                activeTab === "marketplace"
+                  ? "bg-emerald-500 text-black border-emerald-500"
+                  : "border-white/10 text-zinc-300 bg-black/40"
+              }`}
+            >
+              Market
+            </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto w-full">
-          <div className="mx-auto max-w-6xl px-8 py-8">
+          <div className="mx-auto max-w-6xl px-4 md:px-8 py-6 md:py-8">
 
             {/* PORTFOLIO TAB */}
             {activeTab === "portfolio" && (
@@ -298,13 +333,13 @@ export default function Dashboard() {
                 className="flex flex-col gap-8"
               >
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-3">
                   <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
                     <div className="flex items-center gap-2 text-zinc-400">
                       <Wallet size={18} />
                       <span className="text-sm font-medium">Total Account Value</span>
                     </div>
-                    <span className="text-4xl font-bold tracking-tight">
+                    <span className="text-3xl md:text-4xl font-bold tracking-tight">
                       ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -314,7 +349,7 @@ export default function Dashboard() {
                       <Building2 size={18} />
                       <span className="text-sm font-medium">Asset Portfolio</span>
                     </div>
-                    <span className="text-4xl font-bold tracking-tight">
+                    <span className="text-3xl md:text-4xl font-bold tracking-tight">
                       ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -325,9 +360,27 @@ export default function Dashboard() {
                       <TrendingUp size={18} />
                       <span className="text-sm font-medium">Total P/L</span>
                     </div>
-                    <span className={`text-4xl font-bold tracking-tight ${isYieldPositive ? 'text-emerald-500' : 'text-zinc-300'}`}>
+                    <span className={`text-3xl md:text-4xl font-bold tracking-tight ${isYieldPositive ? 'text-emerald-500' : 'text-zinc-300'}`}>
                       {isYieldPositive ? '+' : ''}${totalYield.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
+                  </div>
+                  <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm md:col-span-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-zinc-400">
+                        <TrendingUp size={18} />
+                        <span className="text-sm font-medium">RWA Allocation</span>
+                      </div>
+                      <span className="text-sm text-zinc-400">Share of account invested in tokenised RWAs</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 flex-1 rounded-full bg-zinc-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, rwaAllocation))}%` }}
+                        />
+                      </div>
+                      <span className="text-xl md:text-2xl font-semibold">{rwaAllocation.toFixed(1)}%</span>
+                    </div>
                   </div>
                 </div>
 

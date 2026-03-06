@@ -13,12 +13,16 @@ export const TanssiProvider = {
    * @param userAddress The testnet address of the user.
    */
   async mintFractionalAsset(assetId: string, amount: number, userAddress: string) {
-    console.log(`[Tanssi Dancebox] Initiating transaction...`);
-    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Tanssi Dancebox] Initiating transaction...`);
+    }
+
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    console.log(`[Tanssi Dancebox] Successfully minted ${amount} shares of ${assetId} for ${userAddress}`);
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Tanssi Dancebox] Successfully minted ${amount} shares of ${assetId} for ${userAddress}`);
+    }
     return {
       success: true,
       txHash: `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}`,
@@ -29,7 +33,9 @@ export const TanssiProvider = {
    * Mock querying the user's balance on Dancebox testnet.
    */
   async getBalance(userAddress: string) {
-    console.log(`[Tanssi Dancebox] Querying balance for ${userAddress}...`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Tanssi Dancebox] Querying balance for ${userAddress}...`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
     return 10000; // Return mock testnet tokens
   }
