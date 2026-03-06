@@ -361,8 +361,8 @@ export default function Dashboard() {
 
                   {/* Current Holdings */}
                   <div className="col-span-1 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm h-full max-h-[460px]">
-                    <h2 className="text-lg font-semibold tracking-tight">Your Holdings</h2>
-                    {user?.holdings.length === 0 ? (
+                  <h2 className="text-lg font-semibold tracking-tight">Your Holdings</h2>
+                  {!user || user.holdings.length === 0 ? (
                       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-zinc-500 py-12">
                         <Landmark size={32} />
                         <span className="text-sm">No assets yet.</span>
@@ -375,7 +375,7 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
-                        {user?.holdings.map((h: Holding) => (
+                        {user.holdings.map((h: Holding) => (
                           <div key={h.id} className="group flex flex-col gap-3 rounded-xl border border-white/5 bg-black/20 p-4 transition-all hover:bg-black/40">
                             <div className="flex items-start justify-between">
                               <div>
@@ -419,7 +419,7 @@ export default function Dashboard() {
                 transition={{ duration: 0.3 }}
                 className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
               >
-                {!user?.transactions || user.transactions.length === 0 ? (
+                {!user || !user.transactions || user.transactions.length === 0 ? (
                   <div className="flex flex-1 flex-col items-center justify-center gap-2 text-zinc-500 py-24">
                     <History size={32} />
                     <span className="text-sm">No transactions yet.</span>
